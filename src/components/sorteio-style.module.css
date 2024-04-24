@@ -1,0 +1,9 @@
+.logo {
+  background-image: url(../assets/logo-branco.png);
+  width: 535px;
+  height: 155px;
+}
+
+.bgImg {
+  background-image: url(../assets/bg.jpg);
+}

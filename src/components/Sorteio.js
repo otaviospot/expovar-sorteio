@@ -1,38 +1,61 @@
-import { useState } from "react";
-import { apiGetPostType } from "../services/apiService";
-import style from "../components/sorteio-style.module.css";
-import logoExpovar from "../assets/logo-expovar.png";
-import logoEstrela from "../assets/estrela.png";
-import logoSuprema from "../assets/suprema.png";
-import logoNewbasca from "../assets/logo-branco.png";
-import Loading from "../components/Loading";
+import { useEffect, useState } from 'react';
+import { apiGetPostType } from '../services/apiService';
+import style from '../components/sorteio-style.module.css';
+import logoExpovar from '../assets/logo-expovar.png';
+import logoEstrela from '../assets/estrela.png';
+import logoSuprema from '../assets/suprema.png';
+import logoNewbasca from '../assets/logo-branco.png';
+import Loading from '../components/Loading';
 
 const Sorteio = () => {
   const [loading, setLoading] = useState(true);
   const [show, setShow] = useState(false);
   const [sorteioContent, setSorteioContent] = useState([]);
-  const [sorteado, setSorteado] = useState([]);
+  const [sorteado, setSorteado] = useState(null);
+  const [cuponsSorteados, setCuponsSorteados] = useState([]);
+
+  useEffect(() => {
+    // Carregar cupons sorteados do local storage ao inicializar
+    const cuponsSalvos =
+      JSON.parse(localStorage.getItem('cuponsSorteados')) || [];
+    setCuponsSorteados(cuponsSalvos);
+  }, []);
 
   const getSorteio = async () => {
-    setLoading(true); // Sinaliza que o carregamento começou
+    setLoading(true);
     setShow(true); // Mostra o componente de carregamento
     try {
-      const postTypeBackEndContent = await apiGetPostType("sorteio");
-      console.log("lenght", postTypeBackEndContent.length);
-      if (postTypeBackEndContent.length > 0) {
-        const randomIndex = Math.floor(
-          Math.random() * postTypeBackEndContent.length
-        ); // Índice aleatório
-        const novoSorteado = postTypeBackEndContent[randomIndex];
-        setSorteioContent(postTypeBackEndContent); // Atualiza o conteúdo do sorteio
-        setSorteado(novoSorteado); // Atualiza o sorteado
-      } else {
-        console.log("Nenhum conteúdo disponível para sorteio");
+      const postTypeBackEndContent = await apiGetPostType('sorteio');
+      let novoSorteado = null;
+      do {
+        if (postTypeBackEndContent.length > 0) {
+          const randomIndex = Math.floor(
+            Math.random() * postTypeBackEndContent.length
+          ); // Índice aleatório
+          novoSorteado = postTypeBackEndContent[randomIndex]; // Sorteia um cupom
+        } else {
+          console.log('Nenhum conteúdo disponível para sorteio');
+        }
+      } while (
+        novoSorteado &&
+        cuponsSorteados.includes(novoSorteado.acf.cupom)
+      ); // Re-sorteia se o cupom já foi sorteado
+
+      setSorteioContent(postTypeBackEndContent); // Atualiza o conteúdo do sorteio
+      setSorteado(novoSorteado); // Atualiza o sorteado
+
+      // Adiciona o cupom sorteado à lista de cupons sorteados e salva no local storage
+      if (novoSorteado && !cuponsSorteados.includes(novoSorteado.acf.cupom)) {
+        setCuponsSorteados([...cuponsSorteados, novoSorteado.acf.cupom]);
+        localStorage.setItem(
+          'cuponsSorteados',
+          JSON.stringify([...cuponsSorteados, novoSorteado.acf.cupom])
+        );
       }
     } catch (error) {
-      console.error("Erro ao obter sorteio:", error);
+      console.error('Erro ao obter sorteio:', error);
     } finally {
-      setLoading(false); // Sinaliza que o carregamento terminou
+      setLoading(false);
     }
   };
 

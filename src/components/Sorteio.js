@@ -22,9 +22,7 @@ const Sorteio = () => {
   const [loading, setLoading] = useState(true);
   const [loadingSorteado, setLoadingSorteado] = useState(true);
   const [show, setShow] = useState(false);
-  const [sorteioContent, setSorteioContent] = useState([]);
   const [sorteado, setSorteado] = useState(null);
-  const [cuponsSorteados, setCuponsSorteados] = useState([]);
   const [showList, setShowList] = useState(false);
   const [sorteados, setSorteados] = useState([]);
 
@@ -80,7 +78,6 @@ const Sorteio = () => {
         }
       } while (novoSorteado === null); // Re-sorteia se o cupom já foi sorteado
 
-      setSorteioContent(postTypeBackEndContent); // Atualiza o conteúdo do sorteio
       setSorteado(novoSorteado); // Atualiza o sorteado
     } catch (error) {
       console.error("Erro ao obter sorteio:", error);
@@ -141,7 +138,9 @@ const Sorteio = () => {
 
   const handleOpenCloseList = () => {
     setShowList(!showList);
-    listaSorteados();
+    if (!showList) {
+      listaSorteados();
+    }
   };
 
   return (

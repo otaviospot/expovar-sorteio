@@ -1,59 +1,89 @@
-import { useEffect, useState } from 'react';
-import { apiGetPostType } from '../services/apiService';
-import style from '../components/sorteio-style.module.css';
-import logoExpovar from '../assets/logo-expovar.png';
-import logoEstrela from '../assets/estrela.png';
-import logoSuprema from '../assets/suprema.png';
-import logoNewbasca from '../assets/logo-branco.png';
-import Loading from '../components/Loading';
+import { useEffect, useState } from "react";
+import { apiGetPostType } from "../services/apiService";
+import { initializeApp } from "firebase/app";
+import {
+  getFirestore,
+  addDoc,
+  collection,
+  getDocs,
+  query,
+  where,
+} from "firebase/firestore";
+import { MdOutlineMenu } from "react-icons/md";
+import style from "../components/sorteio-style.module.css";
+import logoExpovar from "../assets/logo-expovar.png";
+import logoEstrela from "../assets/estrela.png";
+import logoSuprema from "../assets/suprema.png";
+import logoNewbasca from "../assets/logo-branco.png";
+import Loading from "../components/Loading";
+import Sorteados from "./Sorteados";
 
 const Sorteio = () => {
   const [loading, setLoading] = useState(true);
+  const [loadingSorteado, setLoadingSorteado] = useState(true);
   const [show, setShow] = useState(false);
   const [sorteioContent, setSorteioContent] = useState([]);
   const [sorteado, setSorteado] = useState(null);
   const [cuponsSorteados, setCuponsSorteados] = useState([]);
+  const [showList, setShowList] = useState(false);
+  const [sorteados, setSorteados] = useState([]);
 
-  useEffect(() => {
-    // Carregar cupons sorteados do local storage ao inicializar
-    const cuponsSalvos =
-      JSON.parse(localStorage.getItem('cuponsSorteados')) || [];
-    setCuponsSorteados(cuponsSalvos);
-  }, []);
+  const firebaseConfig = {
+    apiKey: "AIzaSyB0Z_YklOLteH8Q08GwhqzRrvckzcro0o4",
+    authDomain: "expovar-sorteio.firebaseapp.com",
+    projectId: "expovar-sorteio",
+    storageBucket: "expovar-sorteio.appspot.com",
+    messagingSenderId: "1001169184543",
+    appId: "1:1001169184543:web:2bb6d75b1701f11a0e722a",
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+
+  // Para Firestore
+  const db = getFirestore(app);
+
+  const checkIfCupomSorteado = async (cupom) => {
+    const sorteadosRef = collection(db, "sorteados");
+    const q = query(sorteadosRef, where("cupom", "==", cupom));
+    const querySnapshot = await getDocs(q);
+
+    // Retorna verdadeiro se houver um documento com o cupom
+    return querySnapshot.docs.length > 0;
+  };
 
   const getSorteio = async () => {
     setLoading(true);
     setShow(true); // Mostra o componente de carregamento
+    let novoSorteado = null;
+
     try {
-      const postTypeBackEndContent = await apiGetPostType('sorteio');
-      let novoSorteado = null;
+      const postTypeBackEndContent = await apiGetPostType("sorteio");
+
       do {
         if (postTypeBackEndContent.length > 0) {
           const randomIndex = Math.floor(
             Math.random() * postTypeBackEndContent.length
           ); // Índice aleatório
           novoSorteado = postTypeBackEndContent[randomIndex]; // Sorteia um cupom
+
+          const isCupomSorteado = await checkIfCupomSorteado(
+            novoSorteado.acf.cupom
+          );
+
+          if (!isCupomSorteado) {
+            break; // Se o cupom não foi sorteado, sai do loop
+          }
+          novoSorteado = null;
         } else {
-          console.log('Nenhum conteúdo disponível para sorteio');
+          console.log("Nenhum conteúdo disponível para sorteio");
         }
-      } while (
-        novoSorteado &&
-        cuponsSorteados.includes(novoSorteado.acf.cupom)
-      ); // Re-sorteia se o cupom já foi sorteado
+      } while (novoSorteado === null); // Re-sorteia se o cupom já foi sorteado
 
       setSorteioContent(postTypeBackEndContent); // Atualiza o conteúdo do sorteio
       setSorteado(novoSorteado); // Atualiza o sorteado
-
-      // Adiciona o cupom sorteado à lista de cupons sorteados e salva no local storage
-      if (novoSorteado && !cuponsSorteados.includes(novoSorteado.acf.cupom)) {
-        setCuponsSorteados([...cuponsSorteados, novoSorteado.acf.cupom]);
-        localStorage.setItem(
-          'cuponsSorteados',
-          JSON.stringify([...cuponsSorteados, novoSorteado.acf.cupom])
-        );
-      }
     } catch (error) {
-      console.error('Erro ao obter sorteio:', error);
+      console.error("Erro ao obter sorteio:", error);
     } finally {
       setLoading(false);
     }
@@ -63,16 +93,80 @@ const Sorteio = () => {
     await getSorteio(); // Chama getSorteio para atualizar e sortear
   };
 
+  useEffect(() => {
+    // Carregar cupons sorteados do local storage ao inicializar
+    const writeData = async () => {
+      console.log("sortea");
+      if (sorteado) {
+        console.log("if sorteado");
+        try {
+          // Adiciona um documento ao Firestore
+          const docRef = await addDoc(collection(db, "sorteados"), {
+            nome: sorteado.acf.nome,
+            cupom: sorteado.acf.cupom,
+            telefone: sorteado.acf.telefone,
+            email: sorteado.acf.email,
+            empresa: sorteado.acf.empresa,
+            cnpj: sorteado.acf.cnpj,
+            sorteadoEm: new Date().toISOString(), // Data e hora do sorteio
+          });
+          console.log("Documento adicionado com ID:", docRef.id);
+        } catch (error) {
+          console.error("Erro ao adicionar documento ao Firestore:", error);
+        }
+      }
+    };
+    writeData();
+  }, [sorteado]);
+
+  const listaSorteados = async () => {
+    setLoadingSorteado(true);
+    try {
+      const querySnapshot = await getDocs(collection(db, "sorteados")); // Obtem todos os documentos da coleção
+      const sorteadosData = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(), // Obtem dados do documento
+      }));
+      setSorteados(sorteadosData); // Atualiza o estado com a lista de sorteados
+      console.log("Sorteados:", sorteadosData);
+      setLoadingSorteado(false);
+    } catch (error) {
+      console.error("Erro ao obter dados do Firestore:", error);
+    }
+  };
+
+  useEffect(() => {
+    listaSorteados();
+  }, []);
+
+  const handleOpenCloseList = () => {
+    setShowList(!showList);
+    listaSorteados();
+  };
+
   return (
     <div
       className={`${style.bgImg} w-full h-auto min-h-[100vh] flex flex-col justify-between bg-no-repeat pt-[35px]`}
     >
-      <div className={`flex self-center justify-center`}>
+      <Sorteados
+        sorteados={sorteados}
+        showList={showList}
+        handleOpenCloseList={handleOpenCloseList}
+        loadingSorteado={loadingSorteado}
+      />
+
+      <div className={`flex w-full items-center justify-center`}>
         <img
           src={logoExpovar}
           alt="Logo Expovar"
           className="w-auto max-w-[300px] h-auto"
         />
+        <span
+          className="absolute right-[20px] text-white text-[30px] cursor-pointer"
+          onClick={handleOpenCloseList}
+        >
+          <MdOutlineMenu />
+        </span>
       </div>
       <div className="flex flex-row w-full justify-between py-10">
         <div className="pl-[140px] w-1/2 pr-10">
